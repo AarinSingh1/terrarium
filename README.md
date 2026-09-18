@@ -11,7 +11,7 @@ a week.
 
 - [x] **Day 1** — Core ecosystem: plants that grow and spread, herbivores that
       hunt for food, gain energy, reproduce, and die.
-- [ ] **Day 2** — Day/night cycle affecting plant growth and creature behavior.
+- [x] **Day 2** — Day/night cycle affecting plant growth and creature behavior.
 - [ ] **Day 3** — Predators join the food chain.
 - [ ] **Day 4** — Seasons & weather (droughts, storms).
 - [ ] **Day 5** — Click to plant, water, or drop food — direct interaction.
@@ -32,5 +32,8 @@ Just open `index.html` in a browser. Everything is plain HTML/CSS/JS.
 - **Herbivores** wander until a plant enters their vision radius, move toward
   it, eat it for energy, and spend energy just by being alive. Enough energy
   banked and they reproduce; run out and they die.
+- A **day/night cycle** dims the world, slows plant growth, and shrinks
+  herbivore vision and speed at night — the ecosystem visibly quiets down
+  after dark and picks back up at dawn.
 - The whole thing runs on a single `requestAnimationFrame` loop so future
   systems (predators, weather, evolution...) can hook into the same tick.

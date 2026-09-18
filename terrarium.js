@@ -1,8 +1,9 @@
-// Terrarium — Day 1
+// Terrarium — Day 1 + Day 2
 // A minimal continuous-space ecosystem: plants grow and spread, herbivores
-// wander, eat, reproduce, and die. Everything else added later in the week
-// (day/night, predators, weather, interactivity, evolution, dashboard)
-// plugs into this same loop.
+// wander, eat, reproduce, and die, on a day/night cycle that slows growth
+// and dulls herbivore senses after dark. Everything else added later in the
+// week (predators, weather, interactivity, evolution, dashboard) plugs into
+// this same loop.
 
 const canvas = document.getElementById("world");
 const ctx = canvas.getContext("2d");
@@ -25,6 +26,9 @@ const CONFIG = {
   herbivoreStartEnergy: 50,
   maxPlants: 260,
   maxHerbivores: 140,
+  dayLength: 1400, // ticks for one full day/night cycle
+  nightGrowthFactor: 0.25, // plants grow at this fraction of full rate at night
+  nightSenseFactor: 0.5, // vision + speed drop to this fraction at night
 };
 
 let plants = [];
@@ -32,9 +36,16 @@ let herbivores = [];
 let tick = 0;
 let running = true;
 let speed = 1;
+let light = 1; // 0 = dead of night, 1 = full daylight, recomputed each tick
 
 function rand(min, max) { return min + Math.random() * (max - min); }
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+// Smooth day/night cycle: 0 at midnight, 1 at noon.
+function lightLevelAt(t) {
+  const phase = (t % CONFIG.dayLength) / CONFIG.dayLength; // 0..1
+  return (Math.sin(phase * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+}
 
 function makePlant(x, y) {
   return { x, y, size: rand(0.5, 1.5) };
@@ -63,10 +74,11 @@ function reset() {
 }
 
 function stepPlants() {
+  const growthFactor = CONFIG.nightGrowthFactor + (1 - CONFIG.nightGrowthFactor) * light;
   const next = [];
   for (const p of plants) {
-    if (p.size < CONFIG.plantMaxSize) p.size += CONFIG.plantGrowthRate;
-    if (p.size >= CONFIG.plantMaxSize * 0.8 && Math.random() < CONFIG.plantSpreadChance
+    if (p.size < CONFIG.plantMaxSize) p.size += CONFIG.plantGrowthRate * growthFactor;
+    if (p.size >= CONFIG.plantMaxSize * 0.8 && Math.random() < CONFIG.plantSpreadChance * growthFactor
         && plants.length + next.length < CONFIG.maxPlants) {
       const angle = rand(0, Math.PI * 2);
       const r = rand(10, 30);
@@ -80,9 +92,9 @@ function stepPlants() {
   plants.push(...next);
 }
 
-function nearestPlant(h) {
+function nearestPlant(h, visionRadius) {
   let best = null;
-  let bestDist = CONFIG.herbivoreVisionRadius;
+  let bestDist = visionRadius;
   for (const p of plants) {
     const d = dist(h, p);
     if (d < bestDist) { bestDist = d; best = p; }
@@ -91,11 +103,14 @@ function nearestPlant(h) {
 }
 
 function stepHerbivores() {
+  const senseFactor = CONFIG.nightSenseFactor + (1 - CONFIG.nightSenseFactor) * light;
+  const visionRadius = CONFIG.herbivoreVisionRadius * senseFactor;
+  const moveSpeed = CONFIG.herbivoreSpeed * senseFactor;
   const babies = [];
   herbivores = herbivores.filter(h => h.energy > 0);
 
   for (const h of herbivores) {
-    const target = nearestPlant(h);
+    const target = nearestPlant(h, visionRadius);
 
     if (target) {
       const dx = target.x - h.x;
@@ -117,8 +132,8 @@ function stepHerbivores() {
       h.vy /= norm;
     }
 
-    h.x += h.vx * CONFIG.herbivoreSpeed;
-    h.y += h.vy * CONFIG.herbivoreSpeed;
+    h.x += h.vx * moveSpeed;
+    h.y += h.vy * moveSpeed;
 
     if (h.x < 5) { h.x = 5; h.vx *= -1; }
     if (h.x > W - 5) { h.x = W - 5; h.vx *= -1; }
@@ -154,6 +169,13 @@ function draw() {
     ctx.fillStyle = `rgba(${255 - t * 155}, ${180 + t * 60}, 120, 0.9)`;
     ctx.fill();
   }
+
+  // Night overlay: a dark-blue wash that fades in as light drops.
+  const darkness = 1 - light;
+  if (darkness > 0.02) {
+    ctx.fillStyle = `rgba(4, 10, 20, ${darkness * 0.65})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 }
 
 function updateStats() {
@@ -164,11 +186,18 @@ function updateStats() {
     ? Math.round(herbivores.reduce((s, h) => s + h.energy, 0) / herbivores.length)
     : 0;
   document.getElementById("stat-energy").textContent = avgEnergy;
+
+  const timeEl = document.getElementById("stat-time");
+  if (timeEl) {
+    const icon = light > 0.5 ? "☀️" : "🌙";
+    timeEl.textContent = `${icon} ${Math.round(light * 100)}%`;
+  }
 }
 
 function loop() {
   if (running) {
     for (let i = 0; i < speed; i++) {
+      light = lightLevelAt(tick);
       stepPlants();
       stepHerbivores();
       tick++;
